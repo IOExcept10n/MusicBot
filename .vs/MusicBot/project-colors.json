@@ -1,0 +1,16 @@
+{
+  "Version": 1,
+  "ProjectMap": {
+    "f5ab14ae-b4ff-4277-8f92-1a51f2aacc50": {
+      "ProjectGuid": "f5ab14ae-b4ff-4277-8f92-1a51f2aacc50",
+      "DisplayName": "MusicBot",
+      "ColorIndex": 0
+    },
+    "a2fe74e1-b743-11d0-ae1a-00a0c90fffc3": {
+      "ProjectGuid": "a2fe74e1-b743-11d0-ae1a-00a0c90fffc3",
+      "DisplayName": "Прочие файлы",
+      "ColorIndex": -1
+    }
+  },
+  "NextColorIndex": 1
+}
