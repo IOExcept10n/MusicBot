@@ -4,6 +4,7 @@
 #Environment variables and data
 *.env
 *.binds
+MusicBot/.env
 
 # User-specific files
 *.suo
