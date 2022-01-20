@@ -15,6 +15,7 @@ using System.IO;
 using Victoria;
 using System.Diagnostics;
 using NLog;
+using System.Net.WebSockets;
 
 #pragma warning disable
 namespace MusicBot
@@ -46,6 +47,7 @@ namespace MusicBot
         /// </summary>
         public async Task MainAsync()
         {
+            EnvironmentVariablesHandler.Load();
             var services = ConfigureServices();
             try
             {
@@ -54,7 +56,7 @@ namespace MusicBot
                 socketClient.Log += LogAsync;
                 socketClient.Ready += OnReadyAsync;
                 services.GetRequiredService<CommandService>().Log += LogAsync;
-                EnvironmentVariablesHandler.Load();
+                
                 var values = EnvironmentVariablesHandler.Variables;
                 if (File.Exists(".binds")) CommandServiceHandler.Binds = EnvironmentVariablesHandler.ReadJSON(".binds") ?? new Dictionary<string, string>();
                 string token = values["token"];
@@ -133,7 +135,13 @@ namespace MusicBot
 #endif
                     EnvironmentVariablesHandler.Save();
                     EnvironmentVariablesHandler.WriteJSON(CommandServiceHandler.Binds, ".binds");
-                    await lavaNode.DisconnectAsync();
+                    try
+                    {
+                        await lavaNode.DisconnectAsync();
+                    }
+                    catch
+                    {
+                    }
                     await Task.Delay(1000);
                     Environment.Exit(0);
                     return;
@@ -157,8 +165,12 @@ namespace MusicBot
         /// <param name="logMsg">Сообщения логов.</param>
         private Task LogAsync(LogMessage logMsg)
         {
-            if (logMsg.Source == "Victoria") logger.Trace(logMsg);
-            else Console.WriteLine(logMsg);
+            if (logMsg.Source == "Victoria")
+            {
+                if (logMsg.Exception is WebSocketException) throw logMsg.Exception;
+                logger.Trace(logMsg);
+            }
+            Console.WriteLine(logMsg);
             return Task.CompletedTask;
         }
         /// <summary>
@@ -173,7 +185,9 @@ namespace MusicBot
                 .AddSingleton<HttpClient>()
                 .AddLavaNode(x =>
                 {
-                    x.Authorization = "youshallnotpass";
+                    x.Authorization = EnvironmentVariablesHandler.Variables["lavapassword"];
+                    x.Hostname = EnvironmentVariablesHandler.Variables["lavahost"];
+                    x.Port = ushort.Parse(EnvironmentVariablesHandler.Variables["lavaport"]);
                     x.SelfDeaf = true;
                 })
                 .AddSingleton<MusicService>()

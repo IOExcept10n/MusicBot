@@ -97,11 +97,12 @@ namespace MusicBot.Modules
                 ":minidisc: `playlist [int page]` - показывает указанную страницу списка воспроизводимой музыки.\n" +
                 ":bar_chart: `state` - отображает данные о текущем треке.\n" +
                 ":cyclone: `setorder (PlayOrder order)` - задаёт порядок воспроизведения (Direct = 0, Loop = 1, Random = 2 или Repeat = 3).\n" +
-                ":sound: `setvolume (ushort volume)` - задаёт гроомкость бота.")
+                ":sound: `setvolume (ushort volume)` - задаёт гроомкость бота.\n" +
+                ":stopwatch: `timeout` - получает текущее значение таймаута автоотключения.")
                 .AddField(":man_technologist: Функции для администраторов:",
                 ":heavy_plus_sign: `setbind (string bindData)` - добавляет привязку для авто-ответа на указанную фразу. Формат строки: key;value. Также допустим автовызов команд, не требующих аргументов (начинайте с $).\n" +
                 ":heavy_minus_sign: `removebind (string bind)` - убирает указанную привязку для авто-ответа.\n" +
-                ":clipboard: `getbinds` - отображает список привязок.");
+                ":clipboard: `getbinds` - отображает список привязок.\n");
             var embed = builder.Build();
             await ReplyAsync(embed: embed);
         }

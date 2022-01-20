@@ -10,6 +10,7 @@ using Victoria.EventArgs;
 using Victoria.Enums;
 using Victoria.Responses.Search;
 using System.Collections.Concurrent;
+using System.Globalization;
 
 namespace MusicBot.Modules
 {
@@ -270,7 +271,7 @@ namespace MusicBot.Modules
 
                 await player.PauseAsync();
                 await ReplyQuickEmbedAsync($":pause_button: Плеер успешно приостановлен!", color: Color.DarkBlue);
-                _ = musicService.InitiateDisconnectAsync(player, TimeSpan.FromSeconds(60));
+                _ = musicService.InitiateDisconnectAsync(player, TimeSpan.FromSeconds(300));
             }
             else await ReplyQuickEmbedAsync(":x: Вы должны подключиться к голосовому каналу.", color: Color.Red);
         }
@@ -456,7 +457,7 @@ namespace MusicBot.Modules
                     return;
                 }
 
-                musicService.Order = order;
+                if (!musicService.Order.TryAdd(Context.Guild.Id, order)) musicService.Order[Context.Guild.Id] = order;
                 await ReplyQuickEmbedAsync("Порядок воспроизведения успешно задан!", Color.Green);
             }
             else await ReplyQuickEmbedAsync(":x: Вы должны подключиться к голосовому каналу.", color: Color.Red);
@@ -664,6 +665,21 @@ namespace MusicBot.Modules
             }
             var embed = builder.Build();
             await ReplyAsync(embed: embed);
+        }
+
+        [RequireOwner]
+        [Alias("timeout")]
+        [Command("SetTimeout")]
+        public async Task SetTimeout(TimeSpan timeout)
+        {
+            EnvironmentVariablesHandler.Variables["timeout"] = timeout.ToString("%h\\h%m\\ms\\s");
+            await ReplyQuickEmbedAsync(":stopwatch: Таймаут успешно задан!", new Color(0x68a2ca));
+        }
+
+        [Command("Timeout")]
+        public async Task GetTimeout()
+        {
+            await ReplyQuickEmbedAsync($":clock: Текущее значение таймаута отключения: { MusicService.ReadFormattedTimeSpan(EnvironmentVariablesHandler.Variables["timeout"]) ?? TimeSpan.FromSeconds(15)}", new Color(0x68a2ca));
         }
     }
 }

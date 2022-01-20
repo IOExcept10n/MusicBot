@@ -10,6 +10,7 @@ using Victoria.Responses.Search;
 using System.Collections.Concurrent;
 using Discord;
 using Discord.Commands;
+using System.Globalization;
 
 namespace MusicBot
 {
@@ -19,7 +20,7 @@ namespace MusicBot
 
         private readonly ConcurrentDictionary<ulong, CancellationTokenSource> _disconnectTokens;
         
-        public PlayOrder Order { get; set; }
+        public ConcurrentDictionary<ulong, PlayOrder> Order { get; set; } = new ConcurrentDictionary<ulong, PlayOrder>();
 
         public MusicService(LavaNode lavaNode)
         {
@@ -101,7 +102,10 @@ namespace MusicBot
 
             if (!(args.Reason == TrackEndReason.Finished || args.Reason == TrackEndReason.LoadFailed)) return;
 
-            switch (Order)
+            bool hasCustomOrder = Order.TryGetValue(player.TextChannel.GuildId, out var playOrder);
+            if (hasCustomOrder) playOrder = PlayOrder.Direct; 
+
+            switch (playOrder)
             {
                 case PlayOrder.Direct:
                     break;
@@ -123,7 +127,7 @@ namespace MusicBot
             {
                 if (player.PlayerState != PlayerState.Stopped) return;
                 await ReplyQuickEmbedAsync(args.Player.TextChannel, ":cd: Очередь завершена! Можете добавить побольше музыки, чтобы не скучать!", Color.DarkBlue);
-                _ = InitiateDisconnectAsync(args.Player, TimeSpan.FromSeconds(10));
+                _ = InitiateDisconnectAsync(args.Player, ReadFormattedTimeSpan(EnvironmentVariablesHandler.Variables["timeout"]) ?? TimeSpan.FromSeconds(15));
                 return;
             }
             
@@ -145,6 +149,31 @@ namespace MusicBot
             await channel.SendMessageAsync(embed: embed);
         }
 
+        public static TimeSpan? ReadFormattedTimeSpan(string data)
+        {
+            if (string.IsNullOrEmpty(data)) return null;
+            data = data.Trim().ToLower();
+            TimeSpan output = new TimeSpan();
+            if (data.Contains('h'))
+            {
+                int pos = data.IndexOf('h') + 1;
+                output += TimeSpan.ParseExact(data.Substring(0, pos), @"h\h", CultureInfo.InvariantCulture);
+                data = data.Substring(pos);
+            }
+            if (data.Contains('m'))
+            {
+                int pos = data.IndexOf('m') + 1;
+                output += TimeSpan.ParseExact(data.Substring(0, pos), @"m\m", CultureInfo.InvariantCulture);
+                data = data.Substring(pos);
+            }
+            if (data.Contains('s'))
+            {
+                int pos = data.IndexOf('s') + 1;
+                output += TimeSpan.ParseExact(data.Substring(0, pos), @"s\s", CultureInfo.InvariantCulture);
+                //data = data.Substring(pos);
+            }
+            return output;
+        }
     }
 
     public enum PlayOrder

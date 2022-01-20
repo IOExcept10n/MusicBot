@@ -22,7 +22,7 @@
 
   <ItemGroup>
     <None Update=".env">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Update="LavaLink_Server\application.yml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

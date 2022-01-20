@@ -5,6 +5,7 @@
 *.env
 *.binds
 MusicBot/.env
+logs/
 
 # User-specific files
 *.suo

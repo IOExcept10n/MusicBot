@@ -106,23 +106,21 @@ namespace MusicBot
                 {
                     case CommandError.UnknownCommand:
                         {
+                            string bindingTrgigger = context.Message.Content.TrimStart(Prefix).Replace(context.Client.CurrentUser.Mention, "").Split(" ").First().ToLower();
+                            if (Binds.ContainsKey(bindingTrgigger))
                             {
-                                string bindingTrgigger = context.Message.Content.TrimStart(Prefix).Replace(context.Client.CurrentUser.Mention, "").Split(" ").First().ToLower();
-                                if (Binds.ContainsKey(bindingTrgigger))
+                                string bindedValue = Binds[bindingTrgigger];
+                                if (Commands.Contains(bindedValue))
                                 {
-                                    string bindedValue = Binds[bindingTrgigger];
-                                    if (Commands.Contains(bindedValue))
-                                    {
-                                        int argPos = bindingTrgigger.Length;
-                                        var cmd = (from x in commands.Commands where x.Name.ToLower() == bindedValue[1..] select x).First();
-                                        await cmd.ExecuteAsync(context, ParseResult.FromSuccess(new List<TypeReaderResult>(), new List<TypeReaderResult>()), services);
-                                        return;
-                                    }
-                                    await context.Message.ReplyAsync(bindedValue);
+                                    int argPos = bindingTrgigger.Length;
+                                    var cmd = (from x in commands.Commands where x.Name.ToLower() == bindedValue[1..] select x).First();
+                                    await cmd.ExecuteAsync(context, ParseResult.FromSuccess(new List<TypeReaderResult>(), new List<TypeReaderResult>()), services);
                                     return;
                                 }
-                                await context.Message.ReplyAsync(":x: Такой команды не существует. Пропишите `help` для списка команд.");
+                                await context.Message.ReplyAsync(bindedValue);
+                                return;
                             }
+                            await context.Message.ReplyAsync(":x: Такой команды не существует. Пропишите `help` для списка команд.");
                             return;
                         }
                     case CommandError.BadArgCount:
@@ -132,7 +130,7 @@ namespace MusicBot
                         }
                     case CommandError.ParseFailed:
                         {
-                            await context.Message.ReplyAsync($":x: Произошла ошибка при преобразовании типов данных.\nФормат команды: `{info.Value.Summary}`");
+                            await context.Message.ReplyAsync($":x: Произошла ошибка при преобразовании типов данных.");
                             return;
                         }
                     case CommandError.ObjectNotFound:
