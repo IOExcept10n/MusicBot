@@ -112,10 +112,11 @@ namespace MusicBot.Modules
             }
 
             var queries = searchQuery.Split(';');
+            LavaPlayer player = lavaNode.GetPlayer(Context.Guild);
             foreach (var query in queries)
             {
                 SearchResponse searchResponse;
-                if (Uri.TryCreate(query, UriKind.Absolute, out Uri? uriResult) && (uriResult.Scheme == Uri.UriSchemeHttp || uriResult.Scheme == Uri.UriSchemeHttps))
+                if (Uri.TryCreate(query, UriKind.Absolute, out Uri uriResult) && (uriResult.Scheme == Uri.UriSchemeHttp || uriResult.Scheme == Uri.UriSchemeHttps))
                 {
                     searchResponse = await lavaNode.SearchAsync(SearchType.Direct, query);
                 }
@@ -127,7 +128,6 @@ namespace MusicBot.Modules
                     return;
                 }
 
-                var player = lavaNode.GetPlayer(Context.Guild);
                 await musicService.CancelDisconnectAsync(player);
                 if (player.PlayerState == PlayerState.Playing || player.PlayerState == PlayerState.Paused)
                 {
@@ -175,6 +175,19 @@ namespace MusicBot.Modules
                     }
                 }
             }
+            if (!musicService.TryGetGuildSession(Context.Guild.Id, out var value))
+            {
+                value = new GuildSessionConfiguration();
+                value.GuildID = player.VoiceChannel.Guild.Id;
+                value.ChannelId = player.VoiceChannel.Id;
+                value.CurrentPlaylist = player.Queue;
+                value.CurrentPlayOrder = PlayOrder.Direct;
+                musicService.ActiveGuilds.TryAdd(player.VoiceChannel.Guild.Id, value);
+            }
+            else
+            {
+                value.CurrentPlaylist = player.Queue;
+            }
         }
 
         [Command("Skip")]
@@ -213,6 +226,19 @@ namespace MusicBot.Modules
                     await player.SkipAsync();
                 }
                 await ReplyQuickEmbedAsync($"Успешно пропущено! Сейчас играет {player.Track.Title}");
+                if (!musicService.TryGetGuildSession(Context.Guild.Id, out var value))
+                {
+                    value = new GuildSessionConfiguration();
+                    value.GuildID = player.VoiceChannel.Guild.Id;
+                    value.ChannelId = player.VoiceChannel.Id;
+                    value.CurrentPlaylist = player.Queue;
+                    value.CurrentPlayOrder = PlayOrder.Direct;
+                    musicService.ActiveGuilds.TryAdd(player.VoiceChannel.Guild.Id, value);
+                }
+                else
+                {
+                    value.CurrentPlaylist = player.Queue;
+                }
             }
             else await ReplyQuickEmbedAsync(":x: Вы должны подключиться к голосовому каналу.");
         }
@@ -280,9 +306,24 @@ namespace MusicBot.Modules
         public async Task ReconnectAsync()
         {
             var player = lavaNode.GetPlayer(Context.Guild);
-            await lavaNode.LeaveAsync(player.VoiceChannel);
-            await JoinAsync();
-            await ReplyQuickEmbedAsync(":white_check_mark: Успешно переподключено!");
+            var session = musicService.GetGuildSession(Context.Guild.Id);
+            if (session != null && player != null)
+            {
+                var currentTrack = player.Track;
+                Queue<LavaTrack> tracks = new(session.CurrentPlaylist);
+                await lavaNode.LeaveAsync(player.VoiceChannel);
+                await JoinAsync();
+                player = lavaNode.GetPlayer(Context.Guild);
+                foreach (var track in tracks)
+                {
+                    player.Queue.Enqueue(track);
+                }
+                TimeSpan position = currentTrack.Position;
+                await player.PlayAsync(currentTrack);
+                await player.SeekAsync(position - new TimeSpan(0, 0, 3));
+                await ReplyQuickEmbedAsync(":white_check_mark: Успешно переподключено!");
+            }
+            else await ReplyQuickEmbedAsync(":x: Произошла ошибка при переподключении!", Color.Red);
         }
 
         [Command("Leave")]
@@ -437,7 +478,7 @@ namespace MusicBot.Modules
         [Command("SetOrder")]
         public async Task SetPlayingOrder(PlayOrder order)
         {
-            IVoiceState? voiceState = Context.User as IVoiceState;
+            IVoiceState voiceState = Context.User as IVoiceState;
             if (voiceState != null)
             {
                 if (!lavaNode.HasPlayer(Context.Guild))
@@ -457,7 +498,8 @@ namespace MusicBot.Modules
                     return;
                 }
 
-                if (!musicService.Order.TryAdd(Context.Guild.Id, order)) musicService.Order[Context.Guild.Id] = order;
+                var guildSession = musicService.GetGuildSession(Context.Guild.Id);
+                if (guildSession != null) guildSession.CurrentPlayOrder = order;
                 await ReplyQuickEmbedAsync("Порядок воспроизведения успешно задан!", Color.Green);
             }
             else await ReplyQuickEmbedAsync(":x: Вы должны подключиться к голосовому каналу.", color: Color.Red);
@@ -517,7 +559,7 @@ namespace MusicBot.Modules
                     foreach (var query in queries)
                     {
                         SearchResponse searchResponse;
-                        if (Uri.TryCreate(query, UriKind.Absolute, out Uri? uriResult) && (uriResult.Scheme == Uri.UriSchemeHttp || uriResult.Scheme == Uri.UriSchemeHttps))
+                        if (Uri.TryCreate(query, UriKind.Absolute, out Uri uriResult) && (uriResult.Scheme == Uri.UriSchemeHttp || uriResult.Scheme == Uri.UriSchemeHttps))
                         {
                             searchResponse = await lavaNode.SearchAsync(SearchType.Direct, query);
                         }
@@ -550,6 +592,19 @@ namespace MusicBot.Modules
                         }
                     }
                     await ReplyQuickEmbedAsync("Треки успешно вставлены в очередь!", Color.Green);
+                    if (!musicService.TryGetGuildSession(Context.Guild.Id, out var value))
+                    {
+                        value = new GuildSessionConfiguration();
+                        value.GuildID = player.VoiceChannel.Guild.Id;
+                        value.ChannelId = player.VoiceChannel.Id;
+                        value.CurrentPlaylist = player.Queue;
+                        value.CurrentPlayOrder = PlayOrder.Direct;
+                        musicService.ActiveGuilds.TryAdd(player.VoiceChannel.Guild.Id, value);
+                    }
+                    else
+                    {
+                        value.CurrentPlaylist = player.Queue;
+                    }
                 }
                 else await ReplyQuickEmbedAsync(":x: Длина очереди меньше указанной позиции.", Color.Red);
             }
@@ -576,7 +631,7 @@ namespace MusicBot.Modules
         [Command("Clear")]
         public async Task Clear()
         {
-            IVoiceState? voiceState = Context.User as IVoiceState;
+            IVoiceState voiceState = Context.User as IVoiceState;
             if (voiceState != null)
             {
                 if (!lavaNode.HasPlayer(Context.Guild))
@@ -605,7 +660,7 @@ namespace MusicBot.Modules
         [Command("Remove")]
         public async Task RemoveAsync(int position)
         {
-            IVoiceState? voiceState = Context.User as IVoiceState;
+            IVoiceState voiceState = Context.User as IVoiceState;
             if (voiceState != null)
             {
                 if (!lavaNode.HasPlayer(Context.Guild))
@@ -627,6 +682,19 @@ namespace MusicBot.Modules
 
                 if (position - 1 < player.Queue.Count) player.Queue.RemoveAt(position - 1);
                 await ReplyQuickEmbedAsync("Трек успешно удалён из очереди!", Color.Orange);
+                if (!musicService.TryGetGuildSession(Context.Guild.Id, out var value))
+                {
+                    value = new GuildSessionConfiguration();
+                    value.GuildID = player.VoiceChannel.Guild.Id;
+                    value.ChannelId = player.VoiceChannel.Id;
+                    value.CurrentPlaylist = player.Queue;
+                    value.CurrentPlayOrder = PlayOrder.Direct;
+                    musicService.ActiveGuilds.TryAdd(player.VoiceChannel.Guild.Id, value);
+                }
+                else
+                {
+                    value.CurrentPlaylist = player.Queue;
+                }
             }
             else await ReplyQuickEmbedAsync(":x: Вы должны подключиться к голосовому каналу.", color: Color.Red);
         }

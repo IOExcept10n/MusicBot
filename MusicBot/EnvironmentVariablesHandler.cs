@@ -45,10 +45,10 @@ namespace MusicBot
         /// </summary>
         /// <param name="path"></param>
         /// <returns></returns>
-        internal static Dictionary<string, string>? ReadJSON(string path)
+        internal static Dictionary<string, string> ReadJSON(string path)
         {
-            Dictionary<string, string>? ret = null;
-            StreamReader? stream = null;
+            Dictionary<string, string> ret = null;
+            StreamReader stream = null;
             try
             {
                 stream = new StreamReader(path);

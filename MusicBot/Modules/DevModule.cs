@@ -11,7 +11,7 @@ namespace MusicBot.Modules
     public class DevModule : ModuleBase<SocketCommandContext>
     {
         [Command("SetPrefix")]
-        [RequireOwner]
+        [RequireOwner(ErrorMessage = "Данная команда доступна только создателю бота!")]
         public async Task SetPrefix(char prefix)
         {
             CommandServiceHandler.Prefix = prefix;
@@ -21,11 +21,34 @@ namespace MusicBot.Modules
         }
 
         [Command("SetDebug")]
-        [RequireOwner]
+        [RequireOwner(ErrorMessage = "Данная команда доступна только создателю бота!")]
         public async Task SetDebug(bool debug)
         {
             CommandServiceHandler.DebugMode = debug;
             await ReplyAsync($":white_check_mark: Режим отладки теперь имеет значение {debug}!");
+        }
+
+        [Alias("logs")]
+        [Command("GetLogs")]
+        [RequireOwner(ErrorMessage = "Данная команда доступна только создателю бота!")]
+        public async Task GetLogs(DateTime minDate = default, DateTime maxDate = default)
+        {
+            if (minDate == default) minDate = DateTime.Today;
+            if (maxDate == default) maxDate = DateTime.Today;
+            while (minDate <= maxDate)
+            {
+                string pathToLog = $"logs\\{minDate:yyyy-MM-dd}.log";
+                if (File.Exists(pathToLog))
+                {
+                    EmbedBuilder builder = new EmbedBuilder()
+                    .WithAuthor(Context.Message.Author)
+                    .WithColor(Color.DarkTeal)
+                    .WithTitle($"Log for {minDate:yyyy-MM-dd}")
+                    .WithThumbnailUrl("https://c.tenor.com/QvWdVYDh_YMAAAAC/riina-headphones.gif");
+                    await Context.Message.Channel.SendFileAsync(pathToLog, embed: builder.Build());
+                }
+                minDate += new TimeSpan(1, 0, 0, 0);
+            }
         }
 
         [Alias("AddBind")]

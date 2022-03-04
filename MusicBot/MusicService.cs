@@ -18,48 +18,63 @@ namespace MusicBot
     {
         private LavaNode lavaNode;
 
-        private readonly ConcurrentDictionary<ulong, CancellationTokenSource> _disconnectTokens;
-        
-        public ConcurrentDictionary<ulong, PlayOrder> Order { get; set; } = new ConcurrentDictionary<ulong, PlayOrder>();
+        public ConcurrentDictionary<ulong, GuildSessionConfiguration> ActiveGuilds { get; } = new ConcurrentDictionary<ulong, GuildSessionConfiguration>();
+
+        public GuildSessionConfiguration GetGuildSession(ulong channelId)
+        {
+            if (ActiveGuilds.TryGetValue(channelId, out var guildSession)) return guildSession;
+            return null;
+        }
+
+        public bool TryGetGuildSession(ulong channelId, out GuildSessionConfiguration guildSession)
+        {
+            return ActiveGuilds.TryGetValue(channelId, out guildSession);
+        }
 
         public MusicService(LavaNode lavaNode)
         {
             this.lavaNode = lavaNode;
             lavaNode.OnTrackEnded += OnTrackEnded;
             lavaNode.OnTrackStarted += OnTrackStarted;
-            _disconnectTokens = new ConcurrentDictionary<ulong, CancellationTokenSource>();
         }
 
         internal async Task CancelDisconnectAsync(LavaPlayer player)
         {
-            if (!_disconnectTokens.TryGetValue(player.VoiceChannel?.Id ?? 0, out var value))
+            if (!TryGetGuildSession(player.VoiceChannel?.Guild.Id ?? 0, out var value))
+            {
+                return;
+            }
+            var tokenSource = value.CancellationTokenSource;
+            if (tokenSource.IsCancellationRequested)
             {
                 return;
             }
 
-            if (value.IsCancellationRequested)
-            {
-                return;
-            }
-
-            value.Cancel(true);
+            tokenSource.Cancel(true);
             await Task.CompletedTask;
             return;
         }
 
         private Task OnTrackStarted(TrackStartEventArgs arg)
         {
-            if (!_disconnectTokens.TryGetValue(arg.Player?.VoiceChannel?.Id ?? 0, out var value))
+            if (arg.Player == null) return Task.CompletedTask;
+            if (!TryGetGuildSession(arg.Player.VoiceChannel.Guild.Id, out var value))
+            {
+                value = new GuildSessionConfiguration();
+                value.GuildID = arg.Player.VoiceChannel.Guild.Id;
+                value.ChannelId = arg.Player.VoiceChannel.Id;
+                value.CurrentPlaylist = arg.Player.Queue;
+                value.CurrentPlayOrder = PlayOrder.Direct;
+                ActiveGuilds.TryAdd(arg.Player.VoiceChannel.Guild.Id, value);
+                return Task.CompletedTask;
+            }
+            var tokenSource = value.CancellationTokenSource;
+            if (tokenSource.IsCancellationRequested)
             {
                 return Task.CompletedTask;
             }
 
-            if (value.IsCancellationRequested)
-            {
-                return Task.CompletedTask;
-            }
-
-            value.Cancel(true);
+            tokenSource.Cancel(true);
             return Task.CompletedTask;
             //await arg.Player!.TextChannel.SendMessageAsync("Авто-отключение было отменено!");
         }
@@ -69,30 +84,37 @@ namespace MusicBot
             if (player.PlayerState != PlayerState.Stopped) return;
             try
             {
-                if (!_disconnectTokens.TryGetValue(player.VoiceChannel.Id, out var value))
+                if (!TryGetGuildSession(player.VoiceChannel.Guild.Id, out var value))
                 {
-                    value = new CancellationTokenSource();
-                    _disconnectTokens.TryAdd(player.VoiceChannel.Id, value);
+                    value = new GuildSessionConfiguration
+                    {
+                        CancellationTokenSource = new CancellationTokenSource()
+                    };
+                    ActiveGuilds.TryAdd(player.VoiceChannel.Guild.Id, value);
                 }
-                else if (value.IsCancellationRequested)
+                else if (value.CancellationTokenSource.IsCancellationRequested)
                 {
-                    _disconnectTokens.TryUpdate(player.VoiceChannel.Id, new CancellationTokenSource(), value);
-                    value = _disconnectTokens[player.VoiceChannel.Id];
+                    value.CancellationTokenSource = new CancellationTokenSource();
                 }
 
                 //await player.TextChannel.SendMessageAsync($"Запускаю авто-отключение от канала! Отключение через {timeSpan}...");
-                var isCancelled = SpinWait.SpinUntil(() => value.IsCancellationRequested, timeSpan);
+                var isCancelled = SpinWait.SpinUntil(() => value.CancellationTokenSource.IsCancellationRequested, timeSpan);
                 isCancelled |= player.VoiceChannel == null;
                 if (isCancelled)
                 {
                     return;
                 }
+                ActiveGuilds.TryRemove(player.VoiceChannel.Guild.Id, out _);
                 await lavaNode.LeaveAsync(player.VoiceChannel);
                 await ReplyQuickEmbedAsync(player.TextChannel, "Пригласите меня снова, когда я понадоблюсь. :smile:", Color.Magenta);
             }
+            catch (Exception ex)
+            {
+                CommandServiceHandler.logger.Warn(ex.Message);
+            }
             finally
             {
-
+                
             }
         }
 
@@ -102,8 +124,7 @@ namespace MusicBot
 
             if (!(args.Reason == TrackEndReason.Finished || args.Reason == TrackEndReason.LoadFailed)) return;
 
-            bool hasCustomOrder = Order.TryGetValue(player.TextChannel.GuildId, out var playOrder);
-            if (hasCustomOrder) playOrder = PlayOrder.Direct; 
+            var playOrder = GetGuildSession(player.VoiceChannel.Guild.Id)?.CurrentPlayOrder ?? PlayOrder.Direct;
 
             switch (playOrder)
             {

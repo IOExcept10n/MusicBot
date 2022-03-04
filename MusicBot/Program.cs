@@ -169,7 +169,9 @@ namespace MusicBot
             {
                 if (logMsg.Exception is WebSocketException) throw logMsg.Exception;
                 logger.Trace(logMsg);
+                return Task.CompletedTask;
             }
+            logger.Debug(logMsg);
             Console.WriteLine(logMsg);
             return Task.CompletedTask;
         }

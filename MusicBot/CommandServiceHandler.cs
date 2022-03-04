@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using Discord;
 using Victoria;
+using NLog;
 
 namespace MusicBot
 {
@@ -19,6 +20,8 @@ namespace MusicBot
         private DiscordSocketClient client;
 
         private IServiceProvider services;
+
+        internal static Logger logger;
 
         internal static Dictionary<string, string> Binds { get; set; } = new Dictionary<string, string>();
 
@@ -56,9 +59,10 @@ namespace MusicBot
             client.MessageReceived += OnMessageRecieved;
         }
 
-        public async Task InitializeAsync(char? prefix = null)
+        public async Task InitializeAsync(char? prefix = null, Logger logger = null)
         {
             Prefix = prefix ?? '.';
+            CommandServiceHandler.logger = logger;
             await commands.AddModulesAsync(Assembly.GetEntryAssembly(), services);
             await client.SetActivityAsync(new Activity{ Type = ActivityType.Listening, Name = "some music for you" });
         }
